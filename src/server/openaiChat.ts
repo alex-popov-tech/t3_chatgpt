@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { type Stream } from "openai/streaming.mjs";
 import { env } from "~/env";
 
 export type Role = "USER" | "ASSISTANT";
@@ -34,23 +35,30 @@ export class OpenaiChat {
 
   async ask(
     inputContent: string,
-    history: Message[] = [],
-  ): Promise<{ input: Message; output: Message }> {
-    console.log("openai.ask", { inputContent, history });
-    const input = {
-      role: "user",
-      content: inputContent,
-    } as Message;
-    const res = await openai.chat.completions.create({
+    opts?: { history?: Message[]; stream?: false },
+  ): Promise<OpenAI.Chat.Completions.ChatCompletion>;
+  async ask(
+    inputContent: string,
+    opts?: { history?: Message[]; stream: true },
+  ): Promise<Stream<OpenAI.Chat.Completions.ChatCompletionChunk>>;
+  async ask(
+    inputContent: string,
+    opts?: { history?: Message[]; stream?: boolean },
+  ): Promise<
+    | Stream<OpenAI.Chat.Completions.ChatCompletionChunk>
+    | OpenAI.Chat.Completions.ChatCompletion
+  > {
+    console.log("openai.ask", { inputContent, opts });
+    const input = { role: "user", content: inputContent } as Message;
+    const output = await openai.chat.completions.create({
+      stream: opts?.stream,
       model: this.model,
       messages: [
-        ...history,
+        ...(opts?.history ?? []),
         { ...input, content: `${input.content}\n---${this.constraints}\n---` },
       ],
     });
-    const outputContent = res?.choices[0]?.message?.content ?? "";
-    const output = { role: "assistant", content: outputContent } as Message;
     console.log("openai.ask return", { input, output });
-    return { input, output };
+    return output;
   }
 }

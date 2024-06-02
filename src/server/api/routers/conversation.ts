@@ -1,16 +1,10 @@
 import { TRPCError } from "@trpc/server";
-import EventEmitter from "events";
 import { z } from "zod";
 
-import {
-  createTRPCRouter,
-  protectedProcedure,
-  publicProcedure,
-} from "~/server/api/trpc";
+import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import { type Message, OpenaiChat } from "~/server/openaiChat";
 
 const chat = new OpenaiChat();
-const ee = new EventEmitter();
 
 export const conversationRouter = createTRPCRouter({
   list: protectedProcedure.query(async ({ ctx }) => {
@@ -47,46 +41,58 @@ export const conversationRouter = createTRPCRouter({
 
   create: protectedProcedure
     .input(z.object({ content: z.string().min(1) }))
-    .mutation(async ({ ctx, input: args }) => {
+    .mutation(async function* ({ ctx, input: args }) {
       const userId = ctx.session.user.id;
-      const chat = new OpenaiChat();
-      const { input, output } = await chat.ask(args.content);
-      const title = await chat.makeTitle([input, output]);
+
+      const input = { content: args.content, role: "user" } as Message;
+      console.log({ input });
+      const output = await chat.ask(args.content, { stream: true });
+
+      // draining stream
+      let outputContent = "";
+      for await (const chunk of output) {
+        const content = chunk.choices[0]?.delta.content ?? "";
+        console.log({ content });
+        yield content;
+        outputContent += content;
+      }
+      const outputMessage = {
+        content: outputContent,
+        role: "assistant",
+      } as Message;
+
+      const title = await chat.makeTitle([input, outputMessage]);
 
       const conversation = await ctx.db.conversation.create({
-        data: { createdById: userId, title },
-      });
-      await ctx.db.message.create({
         data: {
-          conversationId: conversation.id,
-          content: input.content,
-          role: "USER",
+          createdById: userId,
+          title: title,
+          messages: {
+            createMany: {
+              data: [
+                { content: args.content, role: "USER" },
+                { content: outputContent, role: "ASSISTANT" },
+              ],
+            },
+          },
         },
-      });
-      await ctx.db.message.create({
-        data: {
-          conversationId: conversation.id,
-          content: output.content,
-          role: "ASSISTANT",
-        },
-      });
-      const result = await ctx.db.conversation.findUnique({
-        where: { id: conversation.id },
         include: { messages: true },
       });
 
-      return { conversation: result };
+      yield { conversation };
     }),
 
   update: protectedProcedure
     .input(z.object({ convId: z.number(), content: z.string().min(1) }))
-    .mutation(async ({ ctx, input: args }) => {
+    .mutation(async function* ({ ctx, input: args }) {
       const userId = ctx.session.user.id;
+      console.log({ userId });
 
       const conv = await ctx.db.conversation.findUnique({
         where: { id: args.convId },
         include: { messages: true },
       });
+      console.log({ conv });
       if (conv?.createdById !== userId) {
         throw new TRPCError({
           code: "UNAUTHORIZED",
@@ -101,6 +107,7 @@ export const conversationRouter = createTRPCRouter({
           conversationId: args.convId,
         },
       });
+      console.log({ inputMessage });
 
       const history = conv.messages.map(
         ({ content, role }) =>
@@ -109,26 +116,27 @@ export const conversationRouter = createTRPCRouter({
             role: role.toLowerCase(),
           }) as Message,
       );
-      const { output } = await chat.ask(args.content, history);
+      console.log({ history });
+      const output = await chat.ask(args.content, { history, stream: true });
+      console.log({ output });
+
+      // draining stream
+      let outputContent = "";
+      for await (const chunk of output) {
+        const chunkContent = chunk.choices[0]?.delta.content ?? "";
+        console.log({ chunkContent });
+        yield chunkContent;
+        outputContent += chunkContent;
+      }
 
       const outputMessage = await ctx.db.message.create({
         data: {
-          content: output.content,
+          content: outputContent,
           role: "ASSISTANT",
           conversationId: args.convId,
         },
       });
-      return { input: inputMessage, output: outputMessage };
+      console.log({ outputMessage });
+      yield { output: outputMessage, input: inputMessage };
     }),
-
-  test: publicProcedure.query(async function* () {
-    console.log("start procedure");
-    for (let i = 0; i < 100; i++) {
-      console.log("before await");
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      console.log("before yield");
-      yield i;
-      console.log("after yield");
-    }
-  }),
 });
