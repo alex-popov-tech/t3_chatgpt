@@ -12,7 +12,7 @@ export const conversationRouter = createTRPCRouter({
     const conversations = await ctx.db.conversation.findMany({
       where: { createdById: userId },
     });
-    return { conversations };
+    return conversations;
   }),
 
   get: protectedProcedure
@@ -86,13 +86,11 @@ export const conversationRouter = createTRPCRouter({
     .input(z.object({ convId: z.number(), content: z.string().min(1) }))
     .mutation(async function* ({ ctx, input: args }) {
       const userId = ctx.session.user.id;
-      console.log({ userId });
 
       const conv = await ctx.db.conversation.findUnique({
         where: { id: args.convId },
         include: { messages: true },
       });
-      console.log({ conv });
       if (conv?.createdById !== userId) {
         throw new TRPCError({
           code: "UNAUTHORIZED",
@@ -107,7 +105,6 @@ export const conversationRouter = createTRPCRouter({
           conversationId: args.convId,
         },
       });
-      console.log({ inputMessage });
 
       const history = conv.messages.map(
         ({ content, role }) =>
@@ -116,15 +113,22 @@ export const conversationRouter = createTRPCRouter({
             role: role.toLowerCase(),
           }) as Message,
       );
-      console.log({ history });
+
+      // update title every 5 messages until 20
+      if (conv.messages.length % 5 && conv.messages.length < 20) {
+        const title = await chat.makeTitle(history);
+        await ctx.db.conversation.update({
+          where: { id: args.convId },
+          data: { title },
+        });
+      }
+
       const output = await chat.ask(args.content, { history, stream: true });
-      console.log({ output });
 
       // draining stream
       let outputContent = "";
       for await (const chunk of output) {
         const chunkContent = chunk.choices[0]?.delta.content ?? "";
-        console.log({ chunkContent });
         yield chunkContent;
         outputContent += chunkContent;
       }
@@ -136,7 +140,6 @@ export const conversationRouter = createTRPCRouter({
           conversationId: args.convId,
         },
       });
-      console.log({ outputMessage });
       yield { output: outputMessage, input: inputMessage };
     }),
 });

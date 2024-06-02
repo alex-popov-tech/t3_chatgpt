@@ -20,7 +20,8 @@ export class OpenaiChat {
   async makeTitle(history: Message[]): Promise<string> {
     const input = {
       role: "user",
-      content: "Make a title for this chat which consist of few words",
+      content:
+        "Make a title for this chat which consist of few words, no quotes",
     } as Message;
     const res = await openai.chat.completions.create({
       model: this.model,
