@@ -23,7 +23,6 @@ export default async function RootLayout({
 }) {
   const session = await getServerAuthSession();
   const conversations = await api.conversation.list().catch((_) => null);
-  console.log({ conversations });
   return (
     <html lang="en" className={`${GeistSans.variable}`}>
       <body>
@@ -42,7 +41,7 @@ export default async function RootLayout({
               {!session?.user && <AgitateSigninModal />}
             </header>
             <div className="flex gap-6 overflow-y-scroll">
-              {conversations?.length && (
+              {!!conversations?.length && (
                 <aside className="text-md mt-3 flex w-fit max-w-60 flex-col gap-4 text-white">
                   <Link href="/" className="mb-2 text-xl">
                     + Add new chat

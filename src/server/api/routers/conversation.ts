@@ -51,14 +51,12 @@ export const conversationRouter = createTRPCRouter({
       const userId = ctx.session.user.id;
 
       const input = { content: args.content, role: "user" } as Message;
-      console.log({ input });
       const output = await chat.ask(args.content, { stream: true });
 
       // draining stream
       let outputContent = "";
       for await (const chunk of output) {
         const content = chunk.choices[0]?.delta.content ?? "";
-        console.log({ content });
         yield content;
         outputContent += content;
       }

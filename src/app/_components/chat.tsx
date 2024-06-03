@@ -87,7 +87,7 @@ export function Chat(props: {
   };
 
   return (
-    <div className="grid grow grid-rows-[1fr_max-content_max-content] gap-4">
+    <div className="grid h-full grow grid-rows-[1fr_max-content_max-content] gap-4">
       <T3Description />
       <div className="flex flex-col gap-2">
         {[
