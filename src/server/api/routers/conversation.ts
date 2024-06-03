@@ -8,6 +8,12 @@ const chat = new OpenaiChat();
 
 export const conversationRouter = createTRPCRouter({
   list: protectedProcedure.query(async ({ ctx }) => {
+    if (!ctx?.session?.user?.id) {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: "You can't list conversations",
+      });
+    }
     const userId = ctx.session.user.id;
     const conversations = await ctx.db.conversation.findMany({
       where: { createdById: userId },
@@ -115,7 +121,7 @@ export const conversationRouter = createTRPCRouter({
       );
 
       // update title every 5 messages until 20
-      if (conv.messages.length % 5 && conv.messages.length < 20) {
+      if (conv.messages.length % 4 && conv.messages.length < 12) {
         const title = await chat.makeTitle(history);
         await ctx.db.conversation.update({
           where: { id: args.convId },

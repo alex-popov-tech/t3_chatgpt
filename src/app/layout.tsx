@@ -22,14 +22,15 @@ export default async function RootLayout({
   children: React.ReactNode;
 }) {
   const session = await getServerAuthSession();
-  const conversations = await api.conversation.list();
+  const conversations = await api.conversation.list().catch((_) => null);
+  console.log({ conversations });
   return (
     <html lang="en" className={`${GeistSans.variable}`}>
       <body>
         <Toast />
         <TRPCReactProvider>
-          <div className="flex min-h-screen flex-col bg-gradient-to-b from-[#2e026d] to-[#15162c]">
-            <header className="sticky top-0 px-3 py-2 drop-shadow-lg backdrop-blur-md">
+          <div className="grid h-screen grid-rows-[max-content_1fr] bg-gradient-to-b from-[#2e026d] to-[#15162c] px-4 py-3">
+            <header className="drop-shadow-lg backdrop-blur-md">
               {session && (
                 <div className="ml-auto flex w-fit items-center justify-center gap-4">
                   <p className="text-center text-xl text-white">
@@ -40,13 +41,13 @@ export default async function RootLayout({
               )}
               {!session?.user && <AgitateSigninModal />}
             </header>
-            <main className="flex grow gap-6 px-4 py-3">
-              {conversations.length && (
-                <aside className="text-md flex w-60 flex-col gap-3 text-white">
+            <div className="flex gap-6 overflow-y-scroll">
+              {conversations?.length && (
+                <aside className="text-md mt-3 flex w-fit max-w-60 flex-col gap-4 text-white">
                   <Link href="/" className="mb-2 text-xl">
                     + Add new chat
                   </Link>
-                  {conversations.map((conv) => (
+                  {conversations?.map((conv) => (
                     <Link
                       key={conv.id}
                       href={`/${conv.id}`}
@@ -57,8 +58,13 @@ export default async function RootLayout({
                   ))}
                 </aside>
               )}
-              {children}
-            </main>
+              <div
+                style={{ scrollbarWidth: "none" }}
+                className="grow overflow-y-scroll"
+              >
+                {children}
+              </div>
+            </div>
           </div>
         </TRPCReactProvider>
       </body>

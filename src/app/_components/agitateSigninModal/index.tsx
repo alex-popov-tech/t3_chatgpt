@@ -33,8 +33,6 @@ export const AgitateSigninModal = () => {
         <div className="flex flex-col gap-2">
           <GithubButton />
           <DiscordButton />
-          <GithubButton />
-          <DiscordButton />
         </div>
       </div>
     </Modal>
